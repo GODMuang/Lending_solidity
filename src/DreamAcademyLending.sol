@@ -7,7 +7,7 @@ interface IPriceOracle {
     function getPrice(address token) external view returns (uint256);
     function setPrice(address token, uint256 price) external;
 }
-
+//
 contract DreamAcademyLending {
     event logging(address, uint);
     
@@ -161,7 +161,7 @@ contract DreamAcademyLending {
     // only .25 of debt
     require(_amount <= userBorrowed[_userLiquidated][_token]/4, "Repay amount exceeds borrowed amount");
     uint256 collateralToSeize = (_amount * oracle.getPrice(token)) / oracle.getPrice(address(0));
-    
+
     // get borrowed token back.
     userBorrowed[_userLiquidated][_token] -= _amount;
     IERC20(_token).transferFrom(_userLiquidated, address(this), _amount);
