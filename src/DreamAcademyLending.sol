@@ -9,19 +9,19 @@ interface IPriceOracle {
 }
 //
 contract DreamAcademyLending {
-    event logging(address, uint);
+    event teest(address, uint);
     
     IPriceOracle oracle;
     address token;
 
-    mapping(address => uint256) userDepositEther;
-    uint256 totalDepositEther;
+    // mapping(address => uint256) userDepositEther;
+    // uint256 totalDepositEther;
 
     mapping(address => mapping(address => uint256)) userDepositToken;
     mapping(address => uint256) totalDepositToken;
 
 
-    mapping(address => mapping(address => uint256)) userBorrowed;
+    mapping(address => mapping(address => uint256)) private userBorrowed;
 
     
     mapping(address => uint256) lastBlockUpdate;
@@ -46,16 +46,16 @@ contract DreamAcademyLending {
         // ether를 deposit
         if (_token == address(0)){
             require(_amount == msg.value,"DEPOSIT_AMOUNT_MISMATCH");
-            userDepositEther[msg.sender] += _amount;
-            totalDepositEther += _amount;
 
         }else{ // token deposit
             require(IERC20(_token).balanceOf(msg.sender) >= _amount, "INSUFFICIENT_ALLOWANCE");
             IERC20(_token).transferFrom(msg.sender, address(this), _amount);
-            userDepositToken[msg.sender][_token] += _amount;
-            totalDepositToken[_token] += _amount;
         }
+        userDepositToken[msg.sender][_token] += _amount;
+            totalDepositToken[_token] += _amount;
     }
+
+    //need sufficient gas limit after much time has passed
     function updateDebt(address _user, address _token)private {
         // 담보가 빌리는돈의 2배가 되어야함. 1블록만에 1000에서 999로
         // 1초에 1/12원만큼 이자가 붙으니까
@@ -64,11 +64,13 @@ contract DreamAcademyLending {
         // 이제 블록당당 복리로 생각해봐야되는디
 
         uint256 blockGap = block.number - lastBlockUpdate[_user];
-
+        // emit teest(msg.sender, borrowTemp);
         for(uint256 i = 0;i< blockGap;i++){
-            userBorrowed[_user][_token] += (userBorrowed[_user][_token]* interestRatePerBlock) / 10000;
+            userBorrowed[_user][_token] += (userBorrowed[_user][_token]* interestRatePerBlock) / 10000 / 1e3;
+            
+            // emit teest(msg.sender, userBorrowed[_user][_token]); 
         }
-
+        
 
 
         lastBlockUpdate[_user] = block.number;
@@ -79,33 +81,45 @@ contract DreamAcademyLending {
     function calcUserTotalBorrowedPrice(address _user) private returns (uint256){
         uint256 userEtherBorrowedPrice = userBorrowed[_user][address(0)] * oracle.getPrice(address(0)); // ether
         uint256 userTokenBorrowedPPrice = userBorrowed[_user][token] * oracle.getPrice(address(token));
-        // you can add more .. .
 
         return userEtherBorrowedPrice + userTokenBorrowedPPrice;
     }
 
     function calcUserTotalDepositPrice(address _user) private returns (uint256){
-        uint256 userEtherDepositPrice = userDepositEther[_user] * oracle.getPrice(address(0));
+        uint256 userEtherDepositPrice = userDepositToken[_user][address(0)] * oracle.getPrice(address(0));
         uint256 userTokenDepositPrice = userDepositToken[_user][token] * oracle.getPrice(address(token));
-        // you can add more .. .
 
         return userEtherDepositPrice + userTokenDepositPrice;
     }
     
     // _token을 _amount만큼 빌려줘라!
     function borrow(address _token, uint256 _amount) external {
+        require(_amount != 0,"no 0");
         updateDebt(msg.sender,token);
-        require(totalDepositToken[_token] >= _amount,"INSUFFICIENT_CURRENT_BALANCE");
 
+        require(totalDepositToken[_token] >= _amount,"INSUFFICIENT_CURRENT_BALANCE");
+        
         uint256 userTotalDepositPrice = calcUserTotalDepositPrice(msg.sender);
         uint256 userTryingBorrowPrice = oracle.getPrice(_token) * _amount;
         uint256 userTotalBorrowedPrice = calcUserTotalBorrowedPrice(msg.sender); // total debt
+        
         require(userTotalDepositPrice >= (userTryingBorrowPrice + userTotalBorrowedPrice) * 2, "INSUFFICIENT_COLLATERAL" );
-        emit logging(msg.sender, userBorrowed[msg.sender][token]);
+
+
+
         userBorrowed[msg.sender][_token] += _amount;
         totalDepositToken[_token] -= _amount;
-        IERC20(_token).transfer(msg.sender, _amount);
-        emit logging(msg.sender, userBorrowed[msg.sender][token]);
+
+        if(_token == address(0)){
+            payable(msg.sender).transfer(_amount);
+        }else{
+            IERC20(_token).transfer(msg.sender, _amount);
+
+        }
+
+
+        
+        
         
     }
 
@@ -127,12 +141,12 @@ contract DreamAcademyLending {
         uint256 userTotalDepositPrice = calcUserTotalDepositPrice(msg.sender);
         uint256 userTryingWithdrawPrice = oracle.getPrice(_token) * _amount;
         uint256 userBorrowedToken1 = (userBorrowed[msg.sender][token] * oracle.getPrice(token)); // if more token add more
-        emit logging(msg.sender, userBorrowed[msg.sender][token]);
+
         require((userTotalDepositPrice - userTryingWithdrawPrice )* 3/4 >= userBorrowedToken1  , "INSUFFICIENT_COLLTERAL_TO_WITHDRAW"); // 75%이상
 
         if(_token == address(0)){
             require(address(this).balance >= _amount, "INSUFFICIENT_BALANCE");
-            userDepositEther[msg.sender] -= _amount;
+            userDepositToken[msg.sender][_token] -= _amount;
             payable(msg.sender).transfer(_amount);
         }else{
             require(IERC20(_token).balanceOf(address(this)) >= _amount, "INSUFFICIENT_VAULT_BALANCE");
@@ -143,11 +157,16 @@ contract DreamAcademyLending {
     }
 
     // 나중에
-    // function getAccruedSupplyAmount(address _token) external returns (uint256 ) {
-    //     updateDebt(token);
+    // 누적이자 계산.
+    // not implemented :(((
+    // :{ turtle
+    // (:[) 
+    // (:D) 
+    function getAccruedSupplyAmount(address _token) external returns (uint256 ) {
+        // updateDebt(token);
 
-    //     return userBorrowed[msg.sender][token];
-    // }
+        return userBorrowed[msg.sender][token];
+    }
     
     // give token back.
     function liquidate(address _userLiquidated, address _token, uint256 _amount) external {
@@ -167,8 +186,8 @@ contract DreamAcademyLending {
     IERC20(_token).transferFrom(_userLiquidated, address(this), _amount);
 
     // give msg.sender liquidated money
-    require(userDepositEther[_userLiquidated] >= collateralToSeize, "INSUFFICIENT_COLLATERAL_TO_SEIZE");
-    userDepositEther[_userLiquidated] -= collateralToSeize;
+    require(userDepositToken[_userLiquidated][address(0)]  >= collateralToSeize, "INSUFFICIENT_COLLATERAL_TO_SEIZE");
+    userDepositToken[_userLiquidated][address(0)]-= collateralToSeize;
     payable(msg.sender).transfer(collateralToSeize);
    
 }

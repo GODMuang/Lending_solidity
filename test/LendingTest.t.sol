@@ -432,7 +432,7 @@ contract Testx is Test {
         vm.stopPrank();
     }
 
-    // function testWithdrawYieldSucceeds() external {
+    function testWithdrawYieldSucceeds() external {// more
         usdc.transfer(user3, 30000000 ether);
         vm.startPrank(user3);
         usdc.approve(address(lending), type(uint256).max);
@@ -483,7 +483,7 @@ contract Testx is Test {
         assertTrue(lending.getAccruedSupplyAmount(address(usdc)) / 1e18 == 0);
     }
 
-    // function testExchangeRateChangeAfterUserBorrows() external {
+    function testExchangeRateChangeAfterUserBorrows() external {// more
         usdc.transfer(user3, 30000000 ether);
         vm.startPrank(user3);
         usdc.approve(address(lending), type(uint256).max);
